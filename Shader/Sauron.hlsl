@@ -100,17 +100,27 @@ float4 render(float2 uv) {
 	
 	float3 coord = float3(atan(pixelUV.x)/6.2832+.5, length(pixelUV)*.4, .5);
 
+	float pupilMovement = sin(builtin_elapsed_time+abs(sin(builtin_elapsed_time)))*0.05;
+
+
 	float time = builtin_elapsed_time;
 	
-	for(float i = 1; i <= 7; i++)
+	for(float i = 1; i <= 5; i++)
 	{
 		float power = pow(3.0, float(i));
-		color += (1.5 / power) * snoise(coord + float3(0.,-time*.05, time*.01), power*16.);
+		color += (1.5 / power) * snoise(coord + float3(0.,-time*.03 - abs(pupilMovement*pupilMovement)*0.8, time*.005+abs(pupilMovement)*0.01), power*100.);
 	}
 	
+	float2 imgUV = uv;
 
-	output += image.Sample(builtin_texture_sampler,uv);
-	output *= lerp(1,0.2,fade);
+	float c = (1-length(uv-0.5)*2);
+
+	imgUV.x += sin(uv.y*PI*30+builtin_elapsed_time*5 + uv.y*100) *0.1 * c*c *fade;
+
+
+	float4 img = image.Sample(builtin_texture_sampler,frac(imgUV));	
+	img *= lerp(1,0.2,fade);
+	output += img;
 	output += clamp(float4( color, pow(max(color,0.),2.)*0.4, pow(max(color,0.),3.)*0.15 , 1.0),0,1)*fade;
 
 
@@ -119,57 +129,17 @@ float4 render(float2 uv) {
 	float2 pupilUV = pixelUV;
 	pupilUV.x *= 1.1;
 
-	pupilUV.x += sin(builtin_elapsed_time+abs(sin(builtin_elapsed_time)))*0.05;
+	pupilUV.x += pupilMovement;
 
-	float pupil =  step(length(float2(pupilWidth,0)-pupilUV),0.5) * step(length(float2(-pupilWidth,0)-pupilUV),0.5);
-
+	float pupil =  smoothstep(0.5,0.51,1-length(float2(pupilWidth,0)-pupilUV)) * smoothstep(0.5,0.51,1-length(float2(-pupilWidth,0)-pupilUV));
+	float pupilBound =  smoothstep(0.49,0.51,1-length(float2(pupilWidth,0)-pupilUV)) * smoothstep(0.49,0.51,1-length(float2(-pupilWidth,0)-pupilUV)) - pupil;
+	//pupilBound = smoothstep(0.2,0.8,pupilBound);
 	//output *= pupil;
-	output = lerp(output,0,pupil);
-
+	float pupilBoundColor = noise(uv.x*100);
+	
+	output = lerp(output,float4(pupilBoundColor,0.5,0.5,1),pupilBound);
+	output = lerp(output,img*4,pupil);
 
 	output.a = 1;
 	return output;
-
-	/*float2 eyePos = 0.5;
-
-
-	float dx = abs(pixelUV.x)*2 + abs(sin(uv.y*20+builtin_elapsed_time*3)*0.2*uv.y-eyePos.y);
-
-	float dy = abs(pixelUV.y)*1.2;
-	float f = smoothstep((dx + dy)*2,0,1);
-
-	float4 eyeColor = float4(1,0.5,0.5,1);
-
-	output = lerp(eyeColor,output,f);
-
-	output.a = 1;
-
-
-
-	return output;*/
 }
-
-
-//TO TEST
-
-/*
-
-
-void mainImage( out vec4 fragColor, in vec2 fragCoord ) 
-{
-	vec2 p = -.5 + fragCoord.xy / iResolution.xy;
-	p.x *= iResolution.x/iResolution.y;
-	
-	float color = 3.0 - (3.*length(2.*p));
-	
-	vec3 coord = vec3(atan(p.x,p.y)/6.2832+.5, length(p)*.4, .5);
-	
-	for(int i = 1; i <= 7; i++)
-	{
-		float power = pow(2.0, float(i));
-		color += (1.5 / power) * snoise(coord + vec3(0.,-iTime*.05, iTime*.01), power*16.);
-	}
-	fragColor = vec4( color, pow(max(color,0.),2.)*0.4, pow(max(color,0.),3.)*0.15 , 1.0);
-}
-
-*/

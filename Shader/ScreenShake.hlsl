@@ -20,40 +20,23 @@ uniform texture2d builtin_texture_fft_<NAME>_previous; // output from the previo
 
 #define PI 3.1415926538
 
-uniform float repetition = 3;
-uniform float baseThickness = 0.2;
-uniform float distortAmount = 0.02;
-uniform float colorMult = -0.1;
-uniform float noiseAmount = 0.1;
-uniform float noiseSize = 0.1;
-uniform float bpm = 150;
+uniform float shakeAmount = 0.03;
+uniform float inDuration = 0.2;
+uniform float duration = 0;
+uniform float outDuration = 1;
 
 float random (in float2 st) {
-	return frac(sin(dot(st.xy,
-		float2(12.9898,78.233)))
-		* 43758.5453123);
+    return frac(sin(dot(st.xy,
+                         float2(12.9898,78.233)))
+                 * 43758.5453123);
 }
 
-float noise (in float2 st) {
-	float2 i = floor(st);
-	float2 f = frac(st);
 
-	// Four corners in 2D of a tile
-	float a = random(i);
-	float b = random(i + float2(1.0, 0.0));
-	float c = random(i + float2(0.0, 1.0));
-	float d = random(i + float2(1.0, 1.0));
-
-	// Smooth Interpolation
-
-	// Cubic Hermine Curve.  Same as SmoothStep()
-	float2 u = f*f*(3.0-2.0*f);
-	// u = smoothstep(0.,1.,f);
-
-	// Mix 4 coorners percentages
-	return lerp(a, b, u.x) +
-			(c - a)* u.y * (1.0 - u.x) +
-			(d - b) * u.x * u.y;
+float circle(float2 _uv, float2 _position, float _innerScale, float _outerScale){
+	float innerCircle = step(distance(_uv,_position),_innerScale);
+	float outCircle = step(distance(_uv,_position),_outerScale); 
+    float outputCircle = outCircle * (1-innerCircle);
+    return outputCircle;
 }
 
 float smoothCircle(float2 _uv, float2 _position, float _innerRadius,float _outerRadius){
@@ -76,30 +59,31 @@ float2 offsetUV(float2 _uv, float2 _center, float _offsetAmount){
 
 
 float4 render(float2 uv) {
+    // sample the source texture and return its color to be displayed
+    float4 output = float4(0,0,0,1);
 
-	float2 resolution = builtin_uv_size; 
-	float screenRatio = float(builtin_uv_size.x) / float(builtin_uv_size.y);
+    float fadeIn = clamp(builtin_elapsed_time_since_enabled*(1/inDuration),0,1);
+    float fadeOut = 1-clamp(-duration+builtin_elapsed_time_since_enabled*(1/outDuration),0,1);
+    float fade = fadeIn * fadeOut;
 
-	float4 output = 0; 
 
-	float2 center = 0.5;
-	float t = builtin_elapsed_time_since_enabled * bpm/60;
-	float count = step(0.5,repetition - t);
 
-	float size = frac(t* 1)*2;
-	float2 nTime = float2(builtin_elapsed_time,builtin_elapsed_time+100);
-	float thickness = baseThickness;
-	float circle = smoothCircle(uv,center,size*size,size*size+(thickness*size));
+	float screenShakeAmout = shakeAmount * fade;
+	
+    float2 customUV = uv;
+    customUV.x += (random(builtin_elapsed_time)-0.5)*2*screenShakeAmout;
+	customUV.y += (random(builtin_elapsed_time+100)-0.5)*2*screenShakeAmout;
 
-	float distToCenter = length(center - uv);
-	float2 imgUV = uv;
-	float fadeCircle =  circle * count;
-	imgUV += normalize(uv - 0.5)*distortAmount * fadeCircle; 
-	imgUV += noise(uv * noiseSize + builtin_elapsed_time) * noiseAmount * fadeCircle; 
-	float4 img = image.Sample(builtin_texture_sampler,frac(imgUV));
+	float4 img = image.Sample(builtin_texture_sampler,frac(customUV));
 
-	output += img;
-	output += circle *colorMult * distToCenter* count;
 
-	return output;
+
+
+    output =  img;
+    output.a = 1;
+
+    //output.x += wave * wave * wave;
+   // output += img;
+    return output;
+   // return image.Sample(builtin_texture_sampler, uv);
 }
