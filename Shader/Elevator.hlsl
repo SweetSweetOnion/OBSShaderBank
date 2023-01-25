@@ -19,14 +19,10 @@ uniform texture2d builtin_texture_fft_<NAME>_previous; // output from the previo
 */
 
 #define PI 3.1415926538
-
-uniform float repetition = 3;
-uniform float baseThickness = 0.2;
-uniform float distortAmount = 0.02;
-uniform float colorMult = -0.1;
-uniform float noiseAmount = 0.1;
-uniform float noiseSize = 0.1;
-uniform float bpm = 150;
+uniform float durationOffset = 0;
+uniform float speed = 0.5;
+uniform float acceleration = 0;
+uniform float numFloor = 6;
 
 float random (in float2 st) {
 	return frac(sin(dot(st.xy,
@@ -56,24 +52,6 @@ float noise (in float2 st) {
 			(d - b) * u.x * u.y;
 }
 
-float smoothCircle(float2 _uv, float2 _position, float _innerRadius,float _outerRadius){
-    float2 dist = _uv-_position;
-    _innerRadius = max(0,_innerRadius);
-    _outerRadius = max(0,_outerRadius);
-	float innerCircle =  1.-smoothstep(_innerRadius-(_innerRadius*0.01),
-                         _innerRadius+(_innerRadius*0.01),
-                         dot(dist,dist)*4.0);
-	float outerCircle = 1.-smoothstep(_outerRadius-(_outerRadius*0.01),
-                         _outerRadius+(_outerRadius*0.01),
-                         dot(dist,dist)*4.0);
-
-	return outerCircle * (1-innerCircle);
-}
-
-float2 offsetUV(float2 _uv, float2 _center, float _offsetAmount){
-	return _uv + (_center-_uv)*_offsetAmount;
-}
-
 
 float4 render(float2 uv) {
 
@@ -83,26 +61,21 @@ float4 render(float2 uv) {
 	pixelUV -= 0.5;
 	pixelUV.x *= screenRatio;
 
-	float4 output = 0; 
 
-	float2 center = 0;
-	float t = builtin_elapsed_time_since_enabled * bpm/60;
-	float count = step(0.5,repetition - t);
+	float d = builtin_elapsed_time_since_enabled/(numFloor / abs(speed)+durationOffset
+	);
 
-	float size = frac(t* 1)*2;
-	float2 nTime = float2(builtin_elapsed_time,builtin_elapsed_time+100);
-	float thickness = baseThickness;
-	float circle = smoothCircle(pixelUV,center,size*size,size*size+(thickness*size));
+	float end = step(d,1);
 
-	float distToCenter = length(center - pixelUV);
-	float2 imgUV = uv;
-	float fadeCircle =  circle * count;
-	imgUV += normalize(uv - 0.5)*distortAmount * fadeCircle; 
-	imgUV += noise(uv * noiseSize + builtin_elapsed_time) * noiseAmount * fadeCircle; 
-	float4 img = image.Sample(builtin_texture_sampler,frac(imgUV));
 
-	output += img;
-	output += circle *colorMult * distToCenter* count;
+	float offset = max(builtin_elapsed_time_since_enabled - durationOffset
+	,0); 
+
+	uv.y += offset * speed *(1+builtin_elapsed_time_since_enabled*builtin_elapsed_time_since_enabled*acceleration)*end;
+
+	float4 output = image.Sample(builtin_texture_sampler,frac(uv));
+
+
 
 	return output;
 }
